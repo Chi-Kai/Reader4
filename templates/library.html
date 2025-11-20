@@ -3,39 +3,618 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Library</title>
+    <title>Library</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f4f9; margin: 0; padding: 40px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        h1 { color: #333; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
-        .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; margin-top: 30px; }
-        .book-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); transition: transform 0.2s; }
-        .book-title { font-size: 1.2em; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
-        .book-meta { color: #666; font-size: 0.9em; margin-bottom: 15px; }
-        .btn { display: inline-block; background: #3498db; color: white; text-decoration: none; padding: 8px 15px; border-radius: 4px; font-size: 0.9em; }
-        .btn:hover { background: #2980b9; }
+        :root {
+            color-scheme: light;
+            --brand: #4b6ef5;
+            --bg: #f6f7fb;
+            --text: #1f2933;
+            --muted: #6b7280;
+            --card: rgba(255, 255, 255, 0.92);
+            --border: #e5e7eb;
+            --overlay: rgba(15, 23, 42, 0.55);
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            margin: 0;
+            padding: 60px 20px 80px;
+            color: var(--text);
+            min-height: 100vh;
+            transition: background 0.3s ease, background-image 0.3s ease;
+            background-size: cover;
+            background-attachment: fixed;
+            background-position: center;
+        }
+        .container {
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+        .floating-actions {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            display: flex;
+            gap: 12px;
+            z-index: 20;
+        }
+        .icon-btn {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            border: 1px solid rgba(75, 110, 245, 0.3);
+            background: rgba(255, 255, 255, 0.95);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--brand);
+            cursor: pointer;
+            transition: transform 0.15s ease, border 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: 0 12px 30px rgba(15,23,42,0.12);
+        }
+        .icon-btn:hover {
+            transform: translateY(-2px);
+            border-color: var(--brand);
+        }
+        .book-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 26px;
+        }
+        .book-card {
+            background: var(--card);
+            border-radius: 24px;
+            padding: 28px 20px 20px;
+            border: 1px solid rgba(15, 23, 42, 0.05);
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            position: relative;
+        }
+        .card-actions {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 6px;
+            z-index: 3;
+        }
+        .card-icon-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            border: none;
+            background: rgba(255,255,255,0.85);
+            color: #d14343;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(15,23,42,0.15);
+        }
+        .card-icon-btn:hover {
+            background: #ffeaea;
+        }
+        .book-cover {
+            position: relative;
+            width: 100%;
+            padding-top: 140%;
+            border-radius: 18px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #dfe9ff, #f8efff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .book-cover img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .progress-tag {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .book-info h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .book-info p {
+            margin: 4px 0;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(75, 110, 245, 0.15);
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #6c8dff, #4b6ef5);
+            transition: width 0.3s ease;
+        }
+        .progress-meta {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+        .book-card a {
+            margin-top: auto;
+            text-decoration: none;
+            color: var(--brand);
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 70px 20px;
+            background: var(--card);
+            border-radius: 30px;
+            border: 1px dashed var(--border);
+            box-shadow: 0 20px 60px rgba(15,23,42,0.12);
+        }
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: var(--overlay);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 40;
+        }
+        .modal.active { display: flex; }
+        .modal-card {
+            background: #fff;
+            border-radius: 28px;
+            padding: 32px;
+            width: min(520px, 92vw);
+            box-shadow: 0 30px 70px rgba(15,23,42,0.35);
+            position: relative;
+        }
+        .modal-card h3 {
+            margin: 0 0 12px;
+        }
+        .close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            border: none;
+            background: transparent;
+            font-size: 1.6rem;
+            cursor: pointer;
+            color: var(--muted);
+        }
+        .dropzone {
+            border: 2px dashed var(--border);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            transition: border 0.2s ease, background 0.2s ease;
+        }
+        .dropzone.dragover {
+            border-color: var(--brand);
+            background: rgba(75, 110, 245, 0.08);
+        }
+        .dropzone button {
+            margin-top: 16px;
+            border: none;
+            border-radius: 999px;
+            padding: 10px 22px;
+            background: var(--brand);
+            color: #fff;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .preset-swatches {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .swatch {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            background: var(--swatch);
+            cursor: pointer;
+            transition: transform 0.15s ease, border 0.15s ease;
+        }
+        .swatch.active {
+            border-color: #111;
+            transform: scale(1.05);
+        }
+        .settings-group {
+            margin-top: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .settings-group label {
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+        .settings-group input[type="color"],
+        .settings-group input[type="file"] {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            font-family: inherit;
+            background: #fff;
+        }
+        .settings-actions {
+            margin-top: 24px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        .settings-actions button {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 22px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .settings-actions .primary {
+            background: var(--brand);
+            color: #fff;
+        }
+        .settings-actions .secondary {
+            background: rgba(15,23,42,0.08);
+            color: var(--text);
+        }
+        @media (max-width: 640px) {
+            body { padding: 100px 14px 60px; }
+            .floating-actions { top: 12px; right: 12px; }
+        }
     </style>
 </head>
 <body>
+    <div class="floating-actions">
+        <button class="icon-btn" id="openUpload" title="Import book" aria-label="Import book">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 16V4M12 4L8 8M12 4L16 8M4 20H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <button class="icon-btn" id="openSettings" title="Shelf settings" aria-label="Shelf settings">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Zm7.4-.49 1.1.85a1.5 1.5 0 0 1-1.49 2.59l-1.3-.5a6.9 6.9 0 0 1-2.37 1.34l-.31.9a1.5 1.5 0 0 1-2.88 0l-.31-.9a6.9 6.9 0 0 1-2.36-1.34l-1.3.5a1.5 1.5 0 0 1-1.49-2.59l1.09-.85a6.92 6.92 0 0 1 0-2.02l-1.1-.85a1.5 1.5 0 0 1 1.5-2.59l1.3.5a6.9 6.9 0 0 1 2.36-1.34l.31-.9a1.5 1.5 0 0 1 2.88 0l.31.9a6.9 6.9 0 0 1 2.37 1.34l1.3-.5a1.5 1.5 0 0 1 1.49 2.59l-1.1.85a6.92 6.92 0 0 1 0 2.02Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+
     <div class="container">
-        <h1>Library</h1>
-
-        {% if not books %}
-            <p>No processed books found. Run <code>reader3.py</code> on an epub first.</p>
-        {% endif %}
-
-        <div class="book-grid">
-            {% for book in books %}
-            <div class="book-card">
-                <div class="book-title">{{ book.title }}</div>
-                <div class="book-meta">
-                    {{ book.author }}<br>
-                    {{ book.chapters }} sections
+        {% if books %}
+            <div class="book-grid">
+                {% for book in books %}
+                <div class="book-card" data-book-id="{{ book.id }}" data-total="{{ book.chapters }}">
+                    <div class="card-actions">
+                        <button class="card-icon-btn" data-delete="{{ book.id }}" title="Delete book" aria-label="Delete book">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 7H19M10 11V17M14 11V17M8 7L9 5H15L16 7M18 7V19C18 20.1 17.1 21 16 21H8C6.9 21 6 20.1 6 19V7H18Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="book-cover">
+                        {% if book.cover_image %}
+                            <img src="/read/{{ book.id }}/{{ book.cover_image }}" alt="Cover of {{ book.title }}">
+                        {% else %}
+                            <span>{{ book.title[0]|upper if book.title else "?" }}</span>
+                        {% endif %}
+                        <span class="progress-tag" data-progress-tag>0%</span>
+                    </div>
+                    <div class="book-info">
+                        <p>{{ book.chapters }} sections</p>
+                        <h2>{{ book.title }}</h2>
+                        <p>{{ book.author if book.author else "Unknown author" }}</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" data-progress-fill></div>
+                        </div>
+                        <p class="progress-meta" data-progress-meta>Not started</p>
+                        <a href="/read/{{ book.id }}/0">Open book →</a>
+                    </div>
                 </div>
-                <a href="/read/{{ book.id }}/0" class="btn">Read Book</a>
+                {% endfor %}
             </div>
-            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <h3>Library is empty</h3>
+                <p>Use the import icon or copy EPUB/TXT files into <code>books/</code> to populate the shelf.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="modal" id="uploadModal">
+        <div class="modal-card">
+            <button class="close-btn" data-close="uploadModal">&times;</button>
+            <h3>Import Book</h3>
+            <div class="dropzone" id="dropZone">
+                <p>Drop a `.epub` or `.txt` file here or choose one manually.</p>
+                <button type="button" id="chooseFile">Browse files</button>
+                <input type="file" id="fileInput" accept=".epub,.txt,text/plain" hidden>
+                <small id="uploadStatus"></small>
+            </div>
         </div>
     </div>
+
+    <div class="modal" id="settingsModal">
+        <div class="modal-card">
+            <button class="close-btn" data-close="settingsModal">&times;</button>
+            <h3>Shelf Settings</h3>
+            <div class="settings-group">
+                <label>Preset colors</label>
+                <div class="preset-swatches" id="presetSwatches">
+                    <button class="swatch" style="--swatch:#f6f7fb" data-color="#f6f7fb"></button>
+                    <button class="swatch" style="--swatch:#fff6ec" data-color="#fff6ec"></button>
+                    <button class="swatch" style="--swatch:#eef4ff" data-color="#eef4ff"></button>
+                    <button class="swatch" style="--swatch:#f5f0ff" data-color="#f5f0ff"></button>
+                    <button class="swatch" style="--swatch:#f2fbf5" data-color="#f2fbf5"></button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <label for="backgroundColor">Custom color</label>
+                <input type="color" id="backgroundColor" value="#f6f7fb">
+            </div>
+            <div class="settings-group">
+                <label for="backgroundImageInput">Background image</label>
+                <input type="file" id="backgroundImageInput" accept="image/*">
+                <button type="button" class="secondary" id="clearBackgroundImage">Remove image</button>
+                <small id="bgStatus"></small>
+            </div>
+            <div class="settings-actions">
+                <button class="secondary" id="resetSettings">Reset</button>
+                <button class="primary" id="saveSettings">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadModal = document.getElementById('uploadModal');
+        const settingsModal = document.getElementById('settingsModal');
+        const modals = { uploadModal, settingsModal };
+        const openUpload = document.getElementById('openUpload');
+        const openSettings = document.getElementById('openSettings');
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const chooseFileBtn = document.getElementById('chooseFile');
+        const uploadStatus = document.getElementById('uploadStatus');
+
+        const backgroundInput = document.getElementById('backgroundColor');
+        const presetButtons = document.querySelectorAll('.swatch');
+        const backgroundImageInput = document.getElementById('backgroundImageInput');
+        const clearBackgroundImageBtn = document.getElementById('clearBackgroundImage');
+        const saveSettingsBtn = document.getElementById('saveSettings');
+        const resetSettingsBtn = document.getElementById('resetSettings');
+        const bgStatus = document.getElementById('bgStatus');
+
+        const settingsKey = 'readerShelfSettings';
+        const progressKey = 'readerProgress';
+        let settings = { background: '#f6f7fb', backgroundImage: null };
+        let pendingBackgroundImage;
+
+        function setStatus(message, isError = false) {
+            uploadStatus.textContent = message;
+            uploadStatus.style.color = isError ? '#d14343' : '';
+        }
+
+        function handleFiles(files) {
+            const file = files[0];
+            if (!file) return;
+            const name = file.name.toLowerCase();
+            if (!name.endsWith('.epub') && !name.endsWith('.txt')) {
+                setStatus('Only EPUB or TXT files are supported.', true);
+                return;
+            }
+            const formData = new FormData();
+            formData.append('file', file);
+            setStatus('Uploading…');
+            fetch('/upload', { method: 'POST', body: formData })
+                .then(res => {
+                    if (!res.ok) throw new Error('Upload failed');
+                    return res.json();
+                })
+                .then(() => {
+                    setStatus('Import complete. Refreshing…');
+                    window.location.reload();
+                })
+                .catch(err => setStatus(err.message ?? 'Upload failed', true));
+        }
+
+        function openModal(id) {
+            modals[id]?.classList.add('active');
+        }
+
+        function closeModal(id) {
+            modals[id]?.classList.remove('active');
+        }
+
+        function hydrateProgress() {
+            let progressData = {};
+            try {
+                progressData = JSON.parse(localStorage.getItem(progressKey)) || {};
+            } catch (err) {
+                progressData = {};
+            }
+            document.querySelectorAll('.book-card').forEach(card => {
+                const id = card.dataset.bookId;
+                const total = Number(card.dataset.total || 0);
+                const fill = card.querySelector('[data-progress-fill]');
+                const tag = card.querySelector('[data-progress-tag]');
+                const meta = card.querySelector('[data-progress-meta]');
+                const data = progressData[id];
+                let percent = 0;
+                let detail = 'Not started';
+                if (data && typeof data.chapter === 'number' && total > 0) {
+                    const current = Math.min(data.chapter + 1, total);
+                    percent = Math.round((current / total) * 100);
+                    detail = percent >= 100 ? 'Completed' : `Section ${current} / ${total}`;
+                }
+                fill.style.width = `${percent}%`;
+                tag.textContent = `${percent}%`;
+                meta.textContent = detail;
+            });
+        }
+
+        function loadSettings() {
+            try {
+                const stored = JSON.parse(localStorage.getItem(settingsKey));
+                if (stored) settings = { ...settings, ...stored };
+            } catch (err) {
+                settings = { background: '#f6f7fb', backgroundImage: null };
+            }
+            pendingBackgroundImage = undefined;
+            backgroundInput.value = settings.background || '#f6f7fb';
+            presetButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.color === settings.background);
+            });
+            applySettings();
+            if (settings.backgroundImage) {
+                bgStatus.textContent = 'Custom background active.';
+            } else {
+                bgStatus.textContent = '';
+            }
+            backgroundImageInput.value = '';
+        }
+
+        function applySettings() {
+            document.documentElement.style.setProperty('--bg', settings.background || '#f6f7fb');
+            if (settings.backgroundImage) {
+                document.body.style.backgroundImage = `url(${settings.backgroundImage})`;
+            } else {
+                document.body.style.backgroundImage = 'none';
+            }
+        }
+
+        function saveSettings() {
+            settings.background = backgroundInput.value;
+            if (pendingBackgroundImage !== undefined) {
+                settings.backgroundImage = pendingBackgroundImage;
+            }
+            localStorage.setItem(settingsKey, JSON.stringify(settings));
+            applySettings();
+            closeModal('settingsModal');
+        }
+
+        function resetSettings() {
+            settings = { background: '#f6f7fb', backgroundImage: null };
+            pendingBackgroundImage = undefined;
+            localStorage.removeItem(settingsKey);
+            backgroundInput.value = settings.background;
+            presetButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.color === settings.background));
+            applySettings();
+            bgStatus.textContent = '';
+        }
+
+        function handleBackgroundImageUpload(file) {
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                bgStatus.textContent = 'Please select an image file.';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                pendingBackgroundImage = reader.result;
+                bgStatus.textContent = 'Image ready to save.';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        openUpload.addEventListener('click', () => openModal('uploadModal'));
+        openSettings.addEventListener('click', () => openModal('settingsModal'));
+        document.querySelectorAll('.close-btn').forEach(btn => {
+            btn.addEventListener('click', () => closeModal(btn.dataset.close));
+        });
+        [uploadModal, settingsModal].forEach(modal => {
+            modal.addEventListener('click', (evt) => {
+                if (evt.target === modal) closeModal(modal.id);
+            });
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        chooseFileBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+        presetButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                backgroundInput.value = btn.dataset.color;
+                presetButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        backgroundImageInput.addEventListener('change', () => {
+            handleBackgroundImageUpload(backgroundImageInput.files[0]);
+        });
+        clearBackgroundImageBtn.addEventListener('click', () => {
+            pendingBackgroundImage = null;
+            bgStatus.textContent = 'Background image will be removed after saving.';
+        });
+        saveSettingsBtn.addEventListener('click', saveSettings);
+        resetSettingsBtn.addEventListener('click', resetSettings);
+
+        loadSettings();
+        hydrateProgress();
+
+        document.querySelectorAll('[data-delete]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const bookId = btn.dataset.delete;
+                if (!bookId) return;
+                if (!confirm('Delete this book from the shelf? This removes its processed data.')) return;
+                btn.disabled = true;
+                fetch(`/books/${bookId}`, { method: 'DELETE' })
+                    .then(res => {
+                        if (!res.ok) throw new Error('Failed to delete');
+                        return res.json();
+                    })
+                    .then(() => {
+                        const card = btn.closest('.book-card');
+                        if (card) {
+                            card.style.opacity = '0.4';
+                            setTimeout(() => card.remove(), 250);
+                        }
+                        const progressData = JSON.parse(localStorage.getItem(progressKey) || '{}');
+                        delete progressData[bookId];
+                        localStorage.setItem(progressKey, JSON.stringify(progressData));
+                    })
+                    .catch(err => {
+                        alert(err.message || 'Unable to delete book');
+                        btn.disabled = false;
+                    });
+            });
+        });
+    </script>
 </body>
 </html>

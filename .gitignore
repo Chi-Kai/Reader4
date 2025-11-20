@@ -10,5 +10,7 @@ wheels/
 .venv
 
 # Custom
+data/
+books/
 *_data/
 *.epub

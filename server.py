@@ -1,20 +1,80 @@
 import os
 import pickle
+import shutil
 from functools import lru_cache
 from typing import Optional
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from reader3 import Book, BookMetadata, ChapterContent, TOCEntry
+from reader3 import (
+    Book,
+    BookMetadata,
+    ChapterContent,
+    TOCEntry,
+    DEFAULT_LIBRARY_DIR,
+    process_epub,
+    process_text_file,
+    save_to_pickle,
+)
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # Where are the book folders located?
-BOOKS_DIR = "."
+BOOKS_DIR = os.environ.get("READER_LIBRARY_DIR", DEFAULT_LIBRARY_DIR)
+BOOK_UPLOAD_DIR = os.environ.get("READER_UPLOAD_DIR", "books")
+SUPPORTED_IMPORTS = (".epub", ".txt")
+os.makedirs(BOOKS_DIR, exist_ok=True)
+os.makedirs(BOOK_UPLOAD_DIR, exist_ok=True)
+
+
+def _slug_from_path(epub_path: str) -> str:
+    return os.path.splitext(os.path.basename(epub_path))[0]
+
+
+def ingest_book(file_path: str):
+    slug = _slug_from_path(file_path)
+    target_dir = os.path.join(BOOKS_DIR, f"{slug}_data")
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".txt":
+        book_obj = process_text_file(file_path, target_dir)
+    else:
+        book_obj = process_epub(file_path, target_dir)
+    save_to_pickle(book_obj, target_dir)
+    load_book_cached.cache_clear()
+    return slug, target_dir
+
+
+def select_cover_image(book: Book) -> Optional[str]:
+    # Prefer images that look like covers
+    for key, path in book.images.items():
+        name = os.path.basename(key).lower()
+        if "cover" in name or "front" in name:
+            return path
+    # Otherwise just grab the first available image path
+    return next(iter(book.images.values()), None)
+
+
+def ingest_pending_files():
+    """
+    Allow users to drop EPUBs into BOOK_UPLOAD_DIR and process
+    anything that doesn't yet have a data folder.
+    """
+    for filename in os.listdir(BOOK_UPLOAD_DIR):
+        if not filename.lower().endswith(SUPPORTED_IMPORTS):
+            continue
+        epub_path = os.path.join(BOOK_UPLOAD_DIR, filename)
+        slug = _slug_from_path(epub_path)
+        target_dir = os.path.join(BOOKS_DIR, f"{slug}_data")
+        if os.path.exists(target_dir):
+            continue
+        try:
+            print(f"Ingesting {epub_path} -> {target_dir}")
+            ingest_book(epub_path)
+        except Exception as exc:
+            print(f"Failed to ingest {filename}: {exc}")
 
 @lru_cache(maxsize=10)
 def load_book_cached(folder_name: str) -> Optional[Book]:
@@ -38,19 +98,23 @@ def load_book_cached(folder_name: str) -> Optional[Book]:
 async def library_view(request: Request):
     """Lists all available processed books."""
     books = []
+    ingest_pending_files()
 
     # Scan directory for folders ending in '_data' that have a book.pkl
     if os.path.exists(BOOKS_DIR):
         for item in os.listdir(BOOKS_DIR):
-            if item.endswith("_data") and os.path.isdir(item):
+            item_path = os.path.join(BOOKS_DIR, item)
+            if item.endswith("_data") and os.path.isdir(item_path):
                 # Try to load it to get the title
                 book = load_book_cached(item)
                 if book:
+                    cover_image = select_cover_image(book)
                     books.append({
                         "id": item,
                         "title": book.metadata.title,
                         "author": ", ".join(book.metadata.authors),
-                        "chapters": len(book.spine)
+                        "chapters": len(book.spine),
+                        "cover_image": cover_image
                     })
 
     return templates.TemplateResponse("library.html", {"request": request, "books": books})
@@ -103,6 +167,54 @@ async def serve_image(book_id: str, image_name: str):
         raise HTTPException(status_code=404, detail="Image not found")
 
     return FileResponse(img_path)
+
+
+@app.post("/upload")
+async def upload_book(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(SUPPORTED_IMPORTS):
+        raise HTTPException(status_code=400, detail="Only EPUB or TXT files are supported")
+
+    safe_name = os.path.basename(file.filename)
+    dest_path = os.path.join(BOOK_UPLOAD_DIR, safe_name)
+
+    with open(dest_path, "wb") as buffer:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            buffer.write(chunk)
+
+    slug, _ = ingest_book(dest_path)
+    return JSONResponse({"status": "ok", "book_id": f"{slug}_data"})
+
+
+@app.delete("/books/{book_id}")
+async def delete_book(book_id: str):
+    safe_id = os.path.basename(book_id)
+    target_dir = os.path.join(BOOKS_DIR, safe_id)
+    if not os.path.isdir(target_dir):
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    try:
+        shutil.rmtree(target_dir)
+        remove_source_file(safe_id)
+        load_book_cached.cache_clear()
+        return JSONResponse({"status": "deleted"})
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Unable to delete book: {exc}")
+
+
+def remove_source_file(book_id: str):
+    slug = book_id[:-5] if book_id.endswith("_data") else book_id
+    try:
+        for filename in os.listdir(BOOK_UPLOAD_DIR):
+            base, ext = os.path.splitext(filename)
+            if base == slug and ext.lower() in SUPPORTED_IMPORTS:
+                os.remove(os.path.join(BOOK_UPLOAD_DIR, filename))
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        print(f"Warning: failed to remove source file for {book_id}: {exc}")
 
 if __name__ == "__main__":
     import uvicorn

@@ -9,10 +9,15 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 from urllib.parse import unquote
+import html
+
+from charset_normalizer import from_path
 
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup, Comment
+
+DEFAULT_LIBRARY_DIR = os.environ.get("READER_LIBRARY_DIR", "data")
 
 # --- Data structures ---
 
@@ -290,20 +295,141 @@ def save_to_pickle(book: Book, output_dir: str):
     print(f"Saved structured data to {p_path}")
 
 
+def split_plain_text_sections(text: str, max_chars: int = 8000) -> List[str]:
+    """
+    Breaks a text file into pseudo chapters by grouping paragraphs together.
+    """
+    blocks = [block.strip() for block in text.replace('\r', '').split('\n\n') if block.strip()]
+    if not blocks:
+        return [text.strip()]
+
+    sections = []
+    current: List[str] = []
+    length = 0
+
+    for block in blocks:
+        block_len = len(block)
+        if current and length + block_len > max_chars:
+            sections.append('\n\n'.join(current))
+            current = [block]
+            length = block_len
+        else:
+            current.append(block)
+            length += block_len
+
+    if current:
+        sections.append('\n\n'.join(current))
+
+    return sections
+
+
+def plain_text_to_html(section: str) -> str:
+    paragraphs = [html.escape(p.strip()) for p in section.split('\n') if p.strip()]
+    if not paragraphs:
+        return "<p></p>"
+    return "".join(f"<p>{p}</p>" for p in paragraphs)
+
+
+def process_text_file(txt_path: str, output_dir: str) -> Book:
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(os.path.join(output_dir, 'images'), exist_ok=True)
+
+    raw_text = load_text_file(txt_path)
+
+    sections = split_plain_text_sections(raw_text)
+    spine_chapters: List[ChapterContent] = []
+
+    for idx, section in enumerate(sections):
+        chapter_html = plain_text_to_html(section)
+        chapter = ChapterContent(
+            id=f"section-{idx}",
+            href=f"section-{idx}",
+            title=f"Section {idx + 1}",
+            content=chapter_html,
+            text=' '.join(section.split()),
+            order=idx
+        )
+        spine_chapters.append(chapter)
+
+    toc_entries = [
+        TOCEntry(
+            title=chapter.title,
+            href=chapter.href,
+            file_href=chapter.href,
+            anchor=""
+        ) for chapter in spine_chapters
+    ]
+
+    title = os.path.splitext(os.path.basename(txt_path))[0] or "Untitled Text"
+    metadata = BookMetadata(
+        title=title,
+        language="en",
+        authors=[],
+        description="Imported plain text file"
+    )
+
+    book = Book(
+        metadata=metadata,
+        spine=spine_chapters,
+        toc=toc_entries,
+        images={},
+        source_file=os.path.basename(txt_path),
+        processed_at=datetime.now().isoformat()
+    )
+
+    return book
+
+
+def load_text_file(path: str) -> str:
+    """Detect encoding with charset_normalizer and fallback to utf-8."""
+    try:
+        matches = from_path(path)
+        best = matches.best()
+        if best:
+            return str(best)
+    except Exception as exc:
+        print(f"Warning: charset detection failed for {path}: {exc}")
+
+    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+        return f.read()
+
+
 # --- CLI ---
 
 if __name__ == "__main__":
 
+    import argparse
     import sys
-    if len(sys.argv) < 2:
-        print("Usage: python reader3.py <file.epub>")
-        sys.exit(1)
 
-    epub_file = sys.argv[1]
-    assert os.path.exists(epub_file), "File not found."
-    out_dir = os.path.splitext(epub_file)[0] + "_data"
+    parser = argparse.ArgumentParser(description="Process an EPUB or TXT file into the local library.")
+    parser.add_argument("input_file", help="Path to the EPUB/TXT file to ingest.")
+    parser.add_argument(
+        "-l",
+        "--library",
+        default=DEFAULT_LIBRARY_DIR,
+        help=f"Directory to store processed books (default: {DEFAULT_LIBRARY_DIR})",
+    )
+    args = parser.parse_args()
 
-    book_obj = process_epub(epub_file, out_dir)
+    input_file = args.input_file
+    if not os.path.exists(input_file):
+        parser.error(f"File not found: {input_file}")
+
+    library_dir = args.library
+    os.makedirs(library_dir, exist_ok=True)
+
+    book_slug = os.path.splitext(os.path.basename(input_file))[0]
+    out_dir = os.path.join(library_dir, f"{book_slug}_data")
+
+    ext = os.path.splitext(input_file)[1].lower()
+    if ext == ".epub":
+        book_obj = process_epub(input_file, out_dir)
+    elif ext == ".txt":
+        book_obj = process_text_file(input_file, out_dir)
+    else:
+        parser.error("Unsupported file type. Provide an .epub or .txt file.")
+
     save_to_pickle(book_obj, out_dir)
     print("\n--- Summary ---")
     print(f"Title: {book_obj.metadata.title}")
