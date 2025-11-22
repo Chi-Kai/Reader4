@@ -44,6 +44,54 @@
         /* Sidebar */
         #sidebar { width: 320px; background: #f8f9fa; border-right: 1px solid #e9ecef; overflow-y: auto; padding: 90px 20px 20px; flex-shrink: 0; transition: transform 0.25s ease, margin-right 0.25s ease; }
         body.sidebar-hidden #sidebar { transform: translateX(-110%); margin-right: -320px; }
+
+        /* Notes Panel */
+        #notes-panel { width: 320px; background: #f8f9fa; border-left: 1px solid #e9ecef; overflow-y: auto; padding: 90px 20px 20px; flex-shrink: 0; transition: transform 0.25s ease, margin-left 0.25s ease; transform: translateX(0%); }
+        body.notes-hidden #notes-panel { transform: translateX(110%); margin-left: -320px; }
+        .note-entry { border: 1px solid #e4e6eb; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+        .note-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; cursor: pointer; }
+        .note-actions { display: flex; gap: 6px; justify-content: flex-end; }
+        .note-btn { background: none; border: none; color: #6b7280; cursor: pointer; padding: 4px; border-radius: 6px; }
+        .note-btn:hover { background: #f1f5f9; color: #dc2626; }
+        .note-body { margin-top: 8px; display: none; }
+        .note-body.visible { display: block; }
+        .note-textarea { width: 100%; min-height: 80px; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; font-family: -apple-system, sans-serif; font-size: 0.95rem; resize: vertical; }
+        .note-label { font-family: -apple-system, sans-serif; font-size: 0.85rem; color: #6b7280; margin-bottom: 6px; display: block; }
+        .note-highlight { display: inline-block; padding: 4px 6px; border-radius: 6px; line-height: 1.4; }
+
+        /* Highlight Styles */
+        ::selection { background-color: rgba(255, 255, 0, 0.3); } /* Default yellow highlight */
+        .highlight-yellow { background-color: rgba(255, 255, 0, 0.3) !important; }
+        .highlight-blue { background-color: rgba(0, 191, 255, 0.3) !important; }
+        .highlight-green { background-color: rgba(144, 238, 144, 0.3) !important; }
+        .highlight-pink { background-color: rgba(255, 182, 193, 0.3) !important; }
+        .highlight-orange { background-color: rgba(255, 165, 0, 0.3) !important; }
+
+        /* Color Picker Toolbar */
+        .color-picker {
+            position: absolute;
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            box-shadow: 0 12px 24px rgba(15,23,42,0.15);
+            z-index: 100;
+        }
+        .color-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .color-btn:hover { border-color: #4b6ef5; }
+        .color-yellow { background-color: rgba(255, 255, 0, 0.5); }
+        .color-blue { background-color: rgba(0, 191, 255, 0.5); }
+        .color-green { background-color: rgba(144, 238, 144, 0.5); }
+        .color-pink { background-color: rgba(255, 182, 193, 0.5); }
+        .color-orange { background-color: rgba(255, 165, 0, 0.5); }
         .nav-header { font-family: -apple-system, sans-serif; font-weight: bold; color: #495057; margin-bottom: 8px; }
         .nav-subtitle { font-family: -apple-system, sans-serif; color: #6b7280; font-size: 0.85rem; margin-top: 0; margin-bottom: 16px; }
 
@@ -83,6 +131,11 @@
         <button class="toolbar-btn" id="tocToggle" aria-pressed="false" title="Toggle table of contents" aria-label="Toggle table of contents">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <path d="M4 6H20M4 12H20M4 18H12" stroke="#1f2933" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <button class="toolbar-btn" id="notesToggle" aria-pressed="false" title="Toggle notes panel" aria-label="Toggle notes panel">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="#1f2933" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
         </button>
     </div>
@@ -139,6 +192,13 @@
                     {% endif %}
                 </div>
             </div>
+        </div>
+
+        <!-- NOTES PANEL -->
+        <div id="notes-panel">
+            <div class="nav-header">Notes</div>
+            <p class="nav-subtitle">All highlighted text from this book</p>
+            <div id="notes-list" class="toc-list"></div>
         </div>
     </div>
 
@@ -222,10 +282,453 @@
             }
         }
 
+        // Note-taking functionality
+        const BOOK_ID = "{{ book_id }}";
+        const CHAPTER_INDEX = {{ chapter_index }};
+
+        // Highlight colors
+        const COLORS = {
+            yellow: 'highlight-yellow',
+            blue: 'highlight-blue',
+            green: 'highlight-green',
+            pink: 'highlight-pink',
+            orange: 'highlight-orange'
+        };
+
+        // Local cache for highlights (for responsiveness)
+        let highlightsCache = {};
+        let highlightsLoaded = false;
+        const HIGHLIGHTS_STORE_KEY = 'readerHighlights';
+
+        // Local + server-side storage for highlights
+        function loadHighlightsFromLocalStorage() {
+            try {
+                const raw = localStorage.getItem(HIGHLIGHTS_STORE_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return parsed[BOOK_ID] || {};
+            } catch (error) {
+                console.warn('Failed to read highlights from localStorage', error);
+                return {};
+            }
+        }
+
+        function saveHighlightsToLocalStorage() {
+            try {
+                const raw = localStorage.getItem(HIGHLIGHTS_STORE_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                parsed[BOOK_ID] = highlightsCache;
+                localStorage.setItem(HIGHLIGHTS_STORE_KEY, JSON.stringify(parsed));
+            } catch (error) {
+                console.warn('Failed to write highlights to localStorage', error);
+            }
+        }
+
+        function mergeHighlights(serverData, localData) {
+            const merged = { ...localData };
+            Object.keys(serverData || {}).forEach(chapter => {
+                if (!merged[chapter]) merged[chapter] = [];
+                const existingIds = new Set(merged[chapter].map(h => h.id));
+                (serverData[chapter] || []).forEach(h => {
+                    if (h.id && existingIds.has(h.id)) return;
+                    merged[chapter].push(h);
+                });
+            });
+            return merged;
+        }
+
+        async function loadHighlightsFromServer() {
+            try {
+                const response = await fetch(`/api/notes/${BOOK_ID}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to load highlights from server:', error);
+                return null;
+            }
+        }
+
+        async function saveHighlightsToServer() {
+            try {
+                const response = await fetch(`/api/notes/${BOOK_ID}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(highlightsCache),
+                });
+                return response.ok;
+            } catch (error) {
+                console.error('Failed to save highlights to server:', error);
+                return false;
+            }
+        }
+
+        async function ensureHighlightsLoaded() {
+            if (highlightsLoaded) return;
+            const local = loadHighlightsFromLocalStorage();
+            const server = await loadHighlightsFromServer();
+            highlightsCache = server ? mergeHighlights(server, local) : local;
+            highlightsLoaded = true;
+            saveHighlightsToLocalStorage();
+        }
+
+        // Get highlights (uses cache)
+        function getHighlights() {
+            return highlightsCache;
+        }
+
+        function findHighlightById(id) {
+            for (const chapter of Object.keys(highlightsCache)) {
+                const list = highlightsCache[chapter] || [];
+                const index = list.findIndex(h => h.id === id);
+                if (index !== -1) {
+                    return { chapter: parseInt(chapter), index, highlight: list[index] };
+                }
+            }
+            return null;
+        }
+
+        // Save highlight (faster with cache)
+        async function saveHighlight(highlight) {
+            highlight.id = `highlight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            if (!highlightsCache[CHAPTER_INDEX]) {
+                highlightsCache[CHAPTER_INDEX] = [];
+            }
+            highlightsCache[CHAPTER_INDEX].push(highlight);
+
+            // Update UI immediately without waiting for server
+            updateNotesList();
+            saveHighlightsToLocalStorage();
+
+            // Save to server in background
+            await saveHighlightsToServer();
+            return highlight;
+        }
+
+        // Render highlights in current chapter
+        async function renderHighlights() {
+            // Wait for highlights to load from server if not already loaded
+            await ensureHighlightsLoaded();
+
+            const highlightsObj = getHighlights();
+            const highlights = highlightsObj[CHAPTER_INDEX] || [];
+            const content = document.querySelector('.book-content');
+
+            // Clear existing highlights added by us
+            content.querySelectorAll('[data-highlight-id]').forEach(span => {
+                span.replaceWith(...span.childNodes);
+            });
+
+            // Apply highlights
+            highlights.forEach(highlight => {
+                const selection = window.getSelection();
+                const range = document.createRange();
+
+                // Find the text node and apply highlight
+                let found = false;
+                const walk = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+                let node;
+
+                while (node = walk.nextNode()) {
+                    const text = node.textContent;
+                    const index = text.indexOf(highlight.text);
+
+                    if (index !== -1) {
+                        // Split the text node
+                        const splitNode = node.splitText(index);
+                        splitNode.splitText(highlight.text.length);
+
+                        // Create highlight span
+                        const span = document.createElement('span');
+                        span.className = COLORS[highlight.color];
+                        span.dataset.highlightId = highlight.id;
+                        span.textContent = highlight.text;
+
+                        // Replace the text node with the span
+                        splitNode.parentNode.replaceChild(span, splitNode);
+                        found = true;
+                        break;
+                    }
+                }
+            });
+
+            updateNotesList();
+        }
+
+        // Color picker functionality
+        let colorPicker = null;
+        let currentRange = null;
+
+        function createColorPicker(x, y, range) {
+            // Save a clone so selection changes (e.g., clicking the palette) don't clear the highlight target
+            currentRange = range.cloneRange();
+
+            colorPicker = document.createElement('div');
+            colorPicker.className = 'color-picker';
+
+            Object.keys(COLORS).forEach(color => {
+                const btn = document.createElement('div');
+                btn.className = `color-btn color-${color}`;
+                btn.dataset.color = color;
+
+                btn.addEventListener('click', async () => {
+                    await applyHighlight(color);
+                    document.body.removeChild(colorPicker);
+                    colorPicker = null;
+                });
+
+                colorPicker.appendChild(btn);
+            });
+
+            colorPicker.style.left = `${x}px`;
+            colorPicker.style.top = `${y}px`;
+            document.body.appendChild(colorPicker);
+        }
+
+        async function applyHighlight(color) {
+            if (!currentRange) return;
+
+            const range = currentRange.cloneRange();
+            const text = range.toString().trim();
+            if (!text) return;
+
+            // Save the highlight
+            const highlight = {
+                text: text,
+                color: color,
+                chapter: CHAPTER_INDEX,
+                note: "",
+                range: {
+                    start: range.startOffset,
+                    end: range.endOffset
+                }
+            };
+
+            const savedHighlight = await saveHighlight(highlight);
+
+            // Apply the highlight visually
+            const span = document.createElement('span');
+            span.className = COLORS[color];
+            span.dataset.highlightId = savedHighlight.id;
+
+            // Reinstate the saved range in the live selection before wrapping to avoid it being lost on palette clicks
+            const liveSelection = window.getSelection();
+            liveSelection.removeAllRanges();
+            liveSelection.addRange(range);
+
+            range.surroundContents(span);
+            liveSelection.removeAllRanges();
+            currentRange = null;
+
+            updateNotesList();
+        }
+
+        // Disable right-click context menu in book content
+        document.querySelector('.book-content').addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // Text selection event handler
+        document.querySelector('.book-content').addEventListener('mouseup', (e) => {
+            const selection = window.getSelection();
+            if (!selection || selection.isCollapsed) return;
+
+            if (colorPicker) {
+                document.body.removeChild(colorPicker);
+                colorPicker = null;
+            }
+
+            // Create a copy of the selection to avoid losing it when clicking the palette
+            const range = selection.getRangeAt(0).cloneRange();
+            const rect = range.getBoundingClientRect();
+            const x = rect.left + window.scrollX + (rect.width / 2) - 70;
+            const y = rect.top + window.scrollY - 60;
+
+            createColorPicker(x, y, range);
+        });
+
+        // Update notes list
+        function updateNotesList() {
+            const highlights = getHighlights();
+            const notesList = document.getElementById('notes-list');
+            notesList.innerHTML = '';
+
+            // Convert highlights object to array
+            const allHighlights = [];
+            Object.keys(highlights).forEach(chapter => {
+                highlights[chapter].forEach(highlight => {
+                    allHighlights.push({ ...highlight, chapter: parseInt(chapter) });
+                });
+            });
+
+            if (allHighlights.length === 0) {
+                notesList.innerHTML = '<p style="color: #999; font-size: 0.9rem;">No highlights yet</p>';
+                return;
+            }
+
+            allHighlights.forEach(highlight => {
+                const entry = document.createElement('div');
+                entry.className = 'note-entry';
+
+                const header = document.createElement('div');
+                header.className = 'note-header';
+
+                const textBtn = document.createElement('button');
+                textBtn.type = 'button';
+                textBtn.className = 'toc-link';
+                textBtn.style.background = 'none';
+                textBtn.style.border = 'none';
+                textBtn.style.textAlign = 'left';
+                textBtn.style.padding = '0';
+                textBtn.style.flex = '1';
+
+                const highlightSpan = document.createElement('span');
+                highlightSpan.className = `${COLORS[highlight.color]} note-highlight`;
+                highlightSpan.textContent = highlight.text;
+                textBtn.appendChild(highlightSpan);
+
+                const actions = document.createElement('div');
+                actions.className = 'note-actions';
+
+                const deleteHighlightBtn = document.createElement('button');
+                deleteHighlightBtn.className = 'note-btn';
+                deleteHighlightBtn.title = '删除高亮';
+                deleteHighlightBtn.innerHTML = '✕';
+                actions.appendChild(deleteHighlightBtn);
+
+                header.appendChild(textBtn);
+                header.appendChild(actions);
+                entry.appendChild(header);
+
+                const noteBody = document.createElement('div');
+                noteBody.className = 'note-body';
+
+                const noteLabel = document.createElement('span');
+                noteLabel.className = 'note-label';
+                noteLabel.textContent = '我的批注';
+
+                const textarea = document.createElement('textarea');
+                textarea.className = 'note-textarea';
+                textarea.value = highlight.note || '';
+
+                const noteButtons = document.createElement('div');
+                noteButtons.className = 'note-actions';
+
+                const deleteNoteBtn = document.createElement('button');
+                deleteNoteBtn.className = 'note-btn';
+                deleteNoteBtn.title = '删除批注';
+                deleteNoteBtn.textContent = '删除批注';
+                noteButtons.appendChild(deleteNoteBtn);
+
+                noteBody.appendChild(noteLabel);
+                noteBody.appendChild(textarea);
+                noteBody.appendChild(noteButtons);
+                if ((highlight.note || '').trim().length > 0) {
+                    noteBody.classList.add('visible');
+                }
+                entry.appendChild(noteBody);
+
+                const toggleNoteVisibility = () => {
+                    noteBody.classList.toggle('visible');
+
+                    // If it's the current chapter, scroll to the highlight
+                    if (highlight.chapter === CHAPTER_INDEX) {
+                        const highlightEl = document.querySelector(`[data-highlight-id="${highlight.id}"]`);
+                        if (highlightEl) {
+                            highlightEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                            highlightEl.style.boxShadow = '0 0 0 2px #4b6ef5';
+                            setTimeout(() => { highlightEl.style.boxShadow = ''; }, 2000);
+                        }
+                    }
+                };
+
+                textBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    toggleNoteVisibility();
+                });
+
+                textarea.addEventListener('input', () => {
+                    const found = findHighlightById(highlight.id);
+                    if (found) {
+                        found.highlight.note = textarea.value;
+                        saveHighlightsToLocalStorage();
+                        saveHighlightsToServer();
+                    }
+                });
+
+                deleteNoteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const found = findHighlightById(highlight.id);
+                    if (found) {
+                        found.highlight.note = "";
+                        textarea.value = "";
+                        saveHighlightsToLocalStorage();
+                        saveHighlightsToServer();
+                        updateNotesList();
+                    }
+                });
+
+                deleteHighlightBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const found = findHighlightById(highlight.id);
+                    if (found) {
+                        const chapterKey = String(found.chapter);
+                        highlightsCache[chapterKey].splice(found.index, 1);
+                        saveHighlightsToLocalStorage();
+                        saveHighlightsToServer();
+                        if (found.chapter === CHAPTER_INDEX) {
+                            renderHighlights();
+                        } else {
+                            updateNotesList();
+                        }
+                    }
+                });
+
+                notesList.appendChild(entry);
+            });
+        }
+
+        // Notes panel toggle functionality
+        function isNotesHidden() {
+            return document.body.classList.contains('notes-hidden');
+        }
+
+        function setupNotesToggle() {
+            const toggle = document.getElementById('notesToggle');
+            toggle.addEventListener('click', () => {
+                const newState = !isNotesHidden();
+                document.body.classList.toggle('notes-hidden', newState);
+                toggle.classList.toggle('active', newState);
+                toggle.setAttribute('aria-pressed', newState ? 'true' : 'false');
+                localStorage.setItem('readerNotesHidden', newState ? 'true' : 'false');
+            });
+        }
+
+        function restoreNotesState() {
+            const collapsed = localStorage.getItem('readerNotesHidden') === 'true';
+            document.body.classList.toggle('notes-hidden', collapsed);
+            const toggle = document.getElementById('notesToggle');
+            toggle.classList.toggle('active', collapsed);
+            toggle.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+        }
+
         saveCurrentProgress();
         restoreSidebarState();
         setupSidebarToggle();
         scrollActiveTocIntoView();
+        restoreNotesState();
+        setupNotesToggle();
+        renderHighlights(); // This is now async, but we can call it as is
+
+        // Initialize
+        document.addEventListener('click', (e) => {
+            if (colorPicker && !colorPicker.contains(e.target)) {
+                document.body.removeChild(colorPicker);
+                colorPicker = null;
+                currentRange = null;
+            }
+        });
     </script>
 </body>
 </html>

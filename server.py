@@ -204,6 +204,38 @@ async def delete_book(book_id: str):
         raise HTTPException(status_code=500, detail=f"Unable to delete book: {exc}")
 
 
+
+# Notes configuration
+NOTES_DIR = os.path.join(BOOKS_DIR, "notes")
+os.makedirs(NOTES_DIR, exist_ok=True)
+
+# Save notes endpoint
+@app.post("/api/notes/{book_id}")
+async def save_notes(book_id: str, notes: dict):
+    safe_id = os.path.basename(book_id)
+    notes_file = os.path.join(NOTES_DIR, f"{safe_id}.json")
+
+    try:
+        with open(notes_file, "w") as f:
+            json.dump(notes, f)
+        return JSONResponse({"status": "saved"})
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Unable to save notes: {exc}")
+
+# Load notes endpoint
+@app.get("/api/notes/{book_id}")
+async def load_notes(book_id: str):
+    safe_id = os.path.basename(book_id)
+    notes_file = os.path.join(NOTES_DIR, f"{safe_id}.json")
+
+    try:
+        if os.path.exists(notes_file):
+            with open(notes_file, "r") as f:
+                return JSONResponse(json.load(f))
+        return JSONResponse({})
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Unable to load notes: {exc}")
+
 def remove_source_file(book_id: str):
     slug = book_id[:-5] if book_id.endswith("_data") else book_id
     try:
